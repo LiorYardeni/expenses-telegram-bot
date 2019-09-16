@@ -1,16 +1,13 @@
 import logging
 from os import environ
 from time import sleep
+from pymongo import MongoClient
+import telegram
+from telegram.error import NetworkError, Unauthorized
 
 from expenses_object import ExpenseObject
 from categories_object import CategoriesObject
 from configuration import get_config
-# from mapping import classify
-
-
-from pymongo import MongoClient
-import telegram
-from telegram.error import NetworkError, Unauthorized
 
 DB_FINANCE = get_config('db_finance')
 DB_EXPENSES_NAME = get_config('db_expenses_name')
@@ -52,13 +49,11 @@ def main():
     # Telegram Bot Authorization Token
     bot = telegram.Bot(get_config('token'))
 
-    # get the first pending update_id, this is so we can skip over it in case
-    # we get an "Unauthorized" exception.
+    # get the first pending update_id if authorised.
     try:
         update_id = bot.get_updates()[0].update_id
     except IndexError:
         update_id = None
-
 
     while True:
         try:
@@ -87,7 +82,7 @@ def reply_message_invalid(update):
 
 
 def get_text_content(update):
-    #get  3 values messages only from group chat,
+    # get 3 values messages only from group chat,
     text_content = update.message['text']
     # buyer = update.message.chat["first_name"] #for private chat, not group
     buyer = update.message['from_user']['first_name']
@@ -95,31 +90,17 @@ def get_text_content(update):
         return text_content, buyer
     else:
         return None, None
-    # else:
-    #     reply_message_invalid(update)
 
 
 def create_expense_dict(text_content, buyer):
     payment_method, expense_item_name, price = map(lambda x: x.strip(), text_content.split(","))
     price = int(price)
-    # TO DO Case sensitivity
-    #TO DO plural
-
     expense_obj = ExpenseObject(expense_item_name=expense_item_name,
                                 payment_method=payment_method,
                                 price=price,
                                 buyer=buyer,)
     expense_dict = expense_obj.create_expense_dict()
     return expense_dict
-
-#
-# def check_category(expense_item_name):
-#     category =
-#     for k,v in categories_dict:
-#         if k == expense_item_name:
-#             return category_name
-#         else:
-#             return category = unsorted
 
 
 def create_categories_dict(expense_item_name, category_name):
@@ -133,16 +114,14 @@ def insert_to_expenses_db(expense_dict):
     expense_id = expenses_collection.insert_one(expense_dict).inserted_id
     return expense_id
 
-# def create_categories_dict(expense_item_name):
-
 
 def echo(bot):
     global update_id
-    # Request updates after the last update_id
+    # request updates after the last update_id
     for update in bot.get_updates(offset=update_id, timeout=10):
         update_id = update.update_id + 1
 
-        if update.message:  # your bot can receive updates without messages
+        if update.message:  # can receive updates without messages
             text_content, buyer = get_text_content(update)
             if not text_content or not buyer:
                 reply_message_invalid(update)
